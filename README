@@ -144,7 +144,7 @@ unfortunately QOI is not good enough in its present form to replace it
 PNG).  Maybe if QOI could add something like a ZSTD final stage the way
 I did here it might get closer to PNGs compression ratios?
 
-This of course would slow down its blazingly fast speeds bot im sorry, in
+This of course would slow down its blazingly fast speeds but im sorry, in
 the real world speed is a complete NON issue, small compressed size
 however is hugely important.  When you have 500,000 hits a day on a web
 page with lots of images you do not care ONE IOTA how long those images
