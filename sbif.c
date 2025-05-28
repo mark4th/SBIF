@@ -97,7 +97,7 @@ void write_run(void)
     {
         // if the data is not one of the run markers then just write run
         // instances of rle to the output buffer.  otherwise fall through
-        // to write a run with an 8 bit count of 1 or 2 (i.e. data that is
+        // to write a run with an 8 run count of 1 or 2 (i.e. data that is
         // the same as the RLE markers need to be escaped)
 
         if ((rle != MARK8) && (rle != MARK16))

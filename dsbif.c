@@ -106,7 +106,6 @@ static uint8_t read_bits(uint8_t n)
 }
 
 // -----------------------------------------------------------------------
-// this is probably not needed either
 
 void flush_bits(void)
 {
