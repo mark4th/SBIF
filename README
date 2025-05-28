@@ -1,0 +1,184 @@
+        The SOMETIMES better image format by Mark I Manning IV
+        ------------------------------------------------------
+
+This is a very simple image compression method that I devised sometime
+either in the late 1980's or early 1990's, very early in my programming
+career.  It was originally used in a DOS game I was writing in pure
+assembler and compressed the main VGA mode 13 background down from 64000
+bytes to 90 bytes (no bs).  It managed to do this mostly because the data
+that it was compressing had a very large number of consecutive pixels of
+the same color both horizontally and vertically.
+
+I sent a small description of this method plus some example ASM code to 
+the maintainers of one or other of the numerous VNC packages.  I cannot 
+remember which VNC group I sent this to and have no idea if they ever 
+actually used it.  They never got back to me.
+
+In the current version of this algorithm the image is encoded in multiple
+stages one scan line at a time, one color channel at a time.  The first
+stage uses one of the following methods.  Stages two and three are run
+length encoding and zstd compression respectively.
+
+     1) Horizontal Compression.
+     2) Vertical Compression.
+     3) Horizontal Differential Compression.
+     4) Vertical Differential Compression.
+     5) Offset Vertical Differential Compression
+
+The first three bits of each scan line of compressed data is a TAG value
+which states which of the above methods was use to compress the data.
+
+The first scan line of an image is always compressed using horizontal
+compression.  Subsequent scan lines are compressed with the method that
+gives the best results.  Offset vertical differential compression can only
+be used on the third or subsequent scan lines of the image.
+
+As each bit of compressed data is generated it is compiled into bytes and
+those bytes are then run length encoded on the fly.  This means that both
+stage one and stage two are performed at the same time.
+
+The original version of this method used only horizontal and vertical
+compression and of course run length encoding.
+
+Horizontal Compression
+----------------------
+
+After writing out the TAG bits, the first pixel of the scan line is 
+written out as is.  Each pixel after the first is then compared with the 
+previous one on the scan line.  If the current pixel is the same color as 
+the one to its left then we output a single ZERO bit.  If it is a different 
+color we output a ONE bit followed by the bits of the new pixel color.
+
+Vertical Compression
+--------------------
+
+After writing out the TAG bits, each pixel is compared to the one directly
+above it.  If they are the same color a single ZERO bit is written out.
+Otherwise a ONE bit is written followed by the bits of the new pixel color
+
+Horizontal Differential Compression
+-----------------------------------
+
+After writing out the TAG bits, the first pixel of the scan line is 
+written out as is.  The next pixel is written out as a single ONE bit 
+followed by the difference between it and the first pixel.  For each pixel 
+after this the delta between it and the one to it's left is computed  and
+if this delta is the same as the previous pixel's delta then a single
+ZERO bit is written out.  Otherwise a ONE bit is written followed by the 
+new delta.
+
+Vertical Differential Compression
+---------------------------------
+
+After writing out the TAG bits, the delta between the first pixel and the
+one directly above it is computed and is written out as is. For each
+subsequent pixel the delta between it and the one immediately above it is
+computed and if this delta is the same as the previous delta then a single
+ZERO bit is written out.  Otherwise a ONE bit is written followed by the
+new delta.
+
+Offset Vertical Differential Compression.
+-----------------------------------------
+
+This method is identical to Vertical Differential Compression except the
+deltas are computed between the current pixel and the one two scan lines
+above it.
+
+Important note
+--------------
+
+This code is not production code, It could probably be coded much much
+better with all kinds of safety checks and what have you but it is a good
+proof of concept, it shows the algorithm with as little extra cruf as is
+humanly possible, in all its gory details.  I should however probably have
+called it the "Not very often better" image format :)
+
+The code currently loads the entire input file into memory, decodes the
+PNG data and then separates each of the color channels into their own
+buffers.   These buffers are then compressed using my algoritms into
+another buffer which is then zstd compressed into yet another buffer,
+ALL resident in memory at the same time.
+
+Things could probably be much less memory intensive if all these duties
+were sub divided into smaller chunks but what would be the fun in that?
+
+My current (very few) benchmarks shows it can sometimes compress data
+smaller that both QOI and PNG but I doubt it will ever be as fast as QOI.
+Mostly the results are larger than both.  There is no way this code will
+ever compete with either PNG or QOI, that was not my intent, this was for
+the fun of it :)
+
+To compress (converting from PNG to sbif)
+
+   sbif infile.png outfile.sbz
+
+To decompress
+
+   dsbif infile.sbz outfile.raw  (does not save as a png)
+
+The reason I chose to not save as a PNG in this code is not just because I
+was too lazy.  The compression routies save out a secondary uncompressed
+file called image.raw which I can compare with outfile.raw using vbindiff.
+This allowed me to see exactly where and how things were being messed up.
+You know, dev stuff.
+
+I really do not like complex solutions
+--------------------------------------
+
+I have said many times that the best solution to any given problem will
+always, without exception be the simplest solution to that problem.  And,
+while this code is ultra simple it is not exactly a viable replacement for
+either PNG or QOI but as stated above, it was never intended to be.
+
+However, the fact that this ultra trivaial algorithm does as well as it
+does leads me to believe that there absolutely has to be a better way.
+PNG is IMHO an absolutely HORRENDOUSLY complex thing.  The mere fact that
+there exists a module (lodepng) that simplifies using libpng to load and
+save PNG files, that is IMHO itself horrendously complex is just a huge
+red flag for me.  I cannot believe anything truely needs to be that
+complex.
+
+As exceptionally good as it is at doing its job IMHO PNG has to go and
+unfortunately QOI is not good enough in its present form to replace it
+(also the name QOI just does not roll off the brain quite as readily as
+PNG).  Maybe if QOI could add something like a ZSTD final stage the way
+I did here it might get closer to PNGs compression ratios?
+
+This of course would slow down its blazingly fast speeds bot im sorry, in
+the real world speed is a complete NON issue, small compressed size
+however is hugely important.  When you have 500,000 hits a day on a web
+page with lots of images you do not care ONE IOTA how long those images
+take to compress or decompress.  What you care about is bandwidth usage.
+
+Also...
+
+On the subject of keeping things simple, one way I try to do this is to
+make sure my sources are readable.  One of my main critisims of lodepng
+is that the entire source file looks like an unmade bed.  I take great
+care to ensure my soures look well kept.   My theory here is that is if
+it is easy to read it will be easy to maintain.
+
+Bug free but unreadable code is literally of no use to anyone once the
+original developer goes away.   Buggy code that anyone can read can be
+fixed by anyone.
+
+I personally find lodepng to be utterly unreadable due to its cluster beep
+formatting and the fact that it contains pretty much everything including
+the kitchen sink in one super ultra mega long source file which is over
+7000 lines!
+
+Friendly Warning!  
+-----------------
+
+If ternary operators or global variables scare you it would probably be
+best if you did not look at my code :).
+
+This might be considered heretical but if you cant read ternary operators
+then I think you need to rethink your career choice.  Ternary operators
+turn a wall of FUGLY nested if / and / but loops into a nice clean,
+simple, well presented, easily scanned at a glance thing of beauty.  I'll
+pick using ternary operators over if / and / but loops all day.
+
+   MM
+
+==========================================================================
